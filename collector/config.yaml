@@ -1,0 +1,75 @@
+# superlog-agent — OpenTelemetry Collector configuration
+#
+# Reads NDJSON events appended by the superlog-log helper from
+# ~/Library/Logs/Superlog/scripts.ndjson and ships them to the configured
+# OTLP/HTTP endpoint as OTel log records.
+#
+# Environment variables (set by the LaunchAgent plist at install time):
+#   SUPERLOG_LOG_PATH         path to the NDJSON input file
+#   SUPERLOG_STORAGE_DIR      directory for filelog cursor state (survives restarts)
+#   SUPERLOG_INGEST_ENDPOINT  OTLP/HTTP base URL (without /v1/logs)
+#   SUPERLOG_INGEST_TOKEN     bearer token for the ingest endpoint
+#   SUPERLOG_PROJECT_ID       project id (sent as x-superlog-project-id header)
+#   SUPERLOG_SERVICE_NAME     service.name resource attribute
+
+extensions:
+  file_storage:
+    directory: ${env:SUPERLOG_STORAGE_DIR}
+
+receivers:
+  filelog:
+    include:
+      - ${env:SUPERLOG_LOG_PATH}
+    # Resume from where we left off across Collector restarts. With storage
+    # configured, start_at only applies on first run.
+    start_at: end
+    storage: file_storage
+    operators:
+      - type: json_parser
+        # The helper writes ts in nanoseconds since epoch.
+        timestamp:
+          parse_from: attributes.ts
+          layout_type: epoch
+          layout: ns
+      - type: move
+        from: attributes.host
+        to: resource["host.name"]
+      - type: move
+        from: attributes.machine_id
+        to: resource["host.id"]
+
+processors:
+  resource:
+    attributes:
+      - key: service.name
+        value: ${env:SUPERLOG_SERVICE_NAME}
+        action: insert
+  batch:
+    send_batch_size: 100
+    timeout: 5s
+
+exporters:
+  otlphttp:
+    endpoint: ${env:SUPERLOG_INGEST_ENDPOINT}
+    headers:
+      authorization: Bearer ${env:SUPERLOG_INGEST_TOKEN}
+      x-superlog-project-id: ${env:SUPERLOG_PROJECT_ID}
+    compression: gzip
+    # Retry forever for transient network failures — these Macs may be on
+    # flaky networks and we'd rather backpressure the file read than drop.
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 5m
+      max_elapsed_time: 0
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [resource, batch]
+      exporters: [otlphttp]
+  telemetry:
+    logs:
+      level: info

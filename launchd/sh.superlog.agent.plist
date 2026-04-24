@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent template for the Superlog on-host agent. The `superlog agent
+  install` CLI substitutes @PLACEHOLDER@ tokens at install time and writes
+  the result to ~/Library/LaunchAgents/sh.superlog.agent.plist.
+
+  The plist is installed with mode 0600 because SUPERLOG_INGEST_TOKEN is
+  inlined in EnvironmentVariables. If you prefer a keychain-backed token,
+  swap ProgramArguments for a wrapper script that sources the token.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>sh.superlog.agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@COLLECTOR_BIN@</string>
+        <string>--config=@CONFIG_PATH@</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SUPERLOG_LOG_PATH</key>
+        <string>@LOG_PATH@</string>
+        <key>SUPERLOG_STORAGE_DIR</key>
+        <string>@STORAGE_DIR@</string>
+        <key>SUPERLOG_INGEST_ENDPOINT</key>
+        <string>@INGEST_ENDPOINT@</string>
+        <key>SUPERLOG_INGEST_TOKEN</key>
+        <string>@INGEST_TOKEN@</string>
+        <key>SUPERLOG_PROJECT_ID</key>
+        <string>@PROJECT_ID@</string>
+        <key>SUPERLOG_SERVICE_NAME</key>
+        <string>@SERVICE_NAME@</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Throttle restart attempts so a misconfigured agent doesn't hot-loop. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>@STDOUT_PATH@</string>
+
+    <key>StandardErrorPath</key>
+    <string>@STDERR_PATH@</string>
+</dict>
+</plist>
