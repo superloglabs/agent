@@ -11,7 +11,7 @@ On-host OpenTelemetry agent for instrumenting macOS AppleScript automation. Inst
 ## Install
 
 ```
-brew install superlog/tap/superlog-agent
+brew install superloglabs/tap/superlog-agent
 superlog agent install
 ```
 
