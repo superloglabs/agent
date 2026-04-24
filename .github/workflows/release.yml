@@ -1,0 +1,71 @@
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "See CHANGELOG for details."
+
+  build:
+    needs: create-release
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: build helper
+        working-directory: superlog-log
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: stage archive
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          STAGE="out/superlog-agent-${VERSION}-darwin-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp "superlog-log/target/${{ matrix.target }}/release/superlog-log" "$STAGE/"
+          cp -R collector "$STAGE/"
+          cp -R launchd "$STAGE/"
+          cp README.md LICENSE "$STAGE/"
+
+      - name: tar + shasum
+        working-directory: out
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="superlog-agent-${VERSION}-darwin-${{ matrix.arch }}.tar.gz"
+          tar czf "$ARCHIVE" "superlog-agent-${VERSION}-darwin-${{ matrix.arch }}"
+          shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
+
+      - name: upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: out
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE="superlog-agent-${VERSION}-darwin-${{ matrix.arch }}.tar.gz"
+          gh release upload "${GITHUB_REF_NAME}" "$ARCHIVE" "$ARCHIVE.sha256" \
+            --repo "${GITHUB_REPOSITORY}"
