@@ -1,0 +1,19 @@
+[package]
+name = "superlog-log"
+version = "0.1.0"
+edition = "2021"
+description = "Append AppleScript instrumentation events to a local NDJSON log"
+publish = false
+
+[[bin]]
+name = "superlog-log"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+[dependencies]
+serde_json = "1"
